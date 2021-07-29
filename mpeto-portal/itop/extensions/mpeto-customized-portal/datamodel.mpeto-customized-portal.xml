@@ -1,0 +1,381 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<itop_design xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" version="1.0">
+
+	<!--
+		Determina qual página será exibida ao logar no Portal do Usuário.
+	-->
+	<portals>
+		<portal id="itop-portal">
+			<url _delta="redefine">pages/exec.php/create/quick-new-user-request?exec_module=itop-portal-base&amp;exec_page=index.php&amp;portal_id=itop-portal</url>
+		</portal>
+	</portals>
+
+	<!--
+		Quando uma solicitação é reaberta, ou seja, é aplicado um estímulo ev_reopen, o padrão é sair 
+		do status de resolved e ir para assigned. Quando isso ocorre, a solicitação volta para a caixa 
+		do agente que havia encerrado a solicitação.
+
+		A redefinição abaixo permite que a solicitação transite do status de resolved para new, quando 
+		é aplicado o estímulo ev_reopen. Como resultado, ao ser reaberta, a solicitação vai para a caixa
+		principal com status de Aguardando Atendimento (new).
+	-->
+	<classes>
+        <class id="UserRequest">
+
+			<presentation>
+                <details>
+                    <items>
+                        <item id="col:col3">
+                            <items>
+                                <item id="fieldset:Ticket:resolution">
+                                    <items>
+                                        <item id="user_satisfaction" _delta="delete"/>
+                                    </items>
+                                </item>
+							</items>
+						</item>
+					</items>
+				</details>
+			</presentation>
+
+			<lifecycle>
+				<states>
+					<state id="resolved">
+						<transitions>
+                            <transition id="ev_reopen">
+                                <target _delta="redefine">new</target>
+                            </transition>
+                        </transitions>
+					</state>
+					
+					<state id="new">
+						<transitions>
+							<transition id="ev_close" _delta="define">
+								<target>closed</target>
+								<actions>
+									<action>
+										<verb>SetCurrentDate</verb>
+										<params>
+											<param xsi:type="attcode">close_date</param>
+										</params>
+									</action>
+								</actions>
+							</transition>
+						</transitions>
+					</state>
+					
+					<!--
+					<state id="assigned">
+						<transitions>
+							<transition id="ev_close" _delta="define">
+								<target>closed</target>
+								<actions>
+									<action>
+										<verb>SetCurrentDate</verb>
+										<params>
+											<param xsi:type="attcode">close_date</param>
+										</params>
+									</action>
+								</actions>
+							</transition>
+						</transitions>
+					</state>
+					-->
+
+					<state id="closed">
+						<flags>
+							<attribute id="user_satisfaction" _delta="redefine">
+								<hidden/>
+                            </attribute>
+							<attribute id="user_comment" _delta="redefine">
+								<read_only/>
+                                <mandatory/>
+                                <must_prompt/>
+                            </attribute>
+						</flags>
+					</state>
+
+				</states>
+			</lifecycle>
+		</class>
+	</classes>
+
+    <module_designs>
+        <!-- 
+            Este module_design está definido no módulo itop-tickets. Os bricks deste module_design são:
+            user-profile, services, ongoing-tickets-for-portal-user e closed-tickets-for-portal-user.
+        -->
+        <module_design id="itop-portal">
+            <bricks>
+                <brick id="user-profile" xsi:type="Combodo\iTop\Portal\Brick\UserProfileBrick" _delta="redefine">
+					<rank>
+						<default>1</default>
+					</rank>
+					<title>
+						<default>Brick:Portal:UserProfile:Navigation:Dropdown:MyProfil</default>
+					</title>
+					<decoration_class>
+						<default>fa fa-user fa-2x</default>
+					</decoration_class>
+					<show_picture_form>true</show_picture_form>
+					<show_preferences_form>false</show_preferences_form>
+					<show_password_form>false</show_password_form>
+					<form>
+						<fields />
+						<twig>
+							<div class="form_field" data-field-id="friendlyname" data-field-flags="read_only"></div>
+							<div class="form_field" data-field-id="name" data-field-flags="read_only"></div>
+                            <div class="form_field" data-field-id="location_id"></div>
+							<div class="form_field" data-field-id="email" data-field-flags="read_only"></div>
+						</twig>
+					</form>
+				</brick>
+
+                <brick id="services">
+					<visible _delta="define">
+						<home>false</home>
+						<navigation_menu>false</navigation_menu>
+					</visible>
+                </brick>
+
+                <!--
+                    - "Abrir chamado" -
+                    Já que não é possível redefinir o brick services porque há outros módulos dependentes 
+                    dele, o brick abaixo está sendo definido em substituição.
+                -->
+				<brick id="quick-new-user-request" xsi:type="Combodo\iTop\Portal\Brick\CreateBrick" _delta="define">
+					<active>true</active>
+					<rank>
+						<default>10</default>
+					</rank>
+					<width>6</width>
+					<title>
+						<default>Brick:Portal:NewRequest:Title</default>
+					</title>
+					<description>Brick:Portal:NewRequest:Title+</description>
+					<modal>false</modal>
+					<visible>
+						<home>true</home>
+						<navigation_menu>true</navigation_menu>
+					</visible>
+					<decoration_class>
+						<default>fc fc-new-request fc-2x</default>
+					</decoration_class>
+					<class>UserRequest</class>
+					<rules>
+						<rule id="contact-to-userrequest"/>
+						<rule id="location-to-userrequest"/>
+						<rule id="go-to-open-request-on-submit"/>
+						<rule id="go-to-open-request-on-cancel"/>
+					</rules>
+				</brick>
+
+                <!--
+                    - "Meus chamados" -
+                    Redefinição de algumas partes do brick ongoing-tickets-for-portal-user.
+                -->
+                <brick id="ongoing-tickets-for-portal-user">
+                    <!--<title>
+						<default _delta="redefine">Brick:Portal:OngoingRequests:Title</default>
+					</title>
+					<description _delta="redefine">Brick:Portal:OngoingRequests:Title+</description>-->
+					<fields _delta="redefine">
+						<field id="start_date"/>
+						<field id="status"/>
+						<field id="description"/>
+						<!--<field id="solution"/>-->
+					</fields>
+					<grouping>
+						<tabs>
+							<groups>
+
+								<group id="opened">
+									<condition _delta="redefine">
+										<!--<![CDATA[SELECT Ticket AS T WHERE operational_status NOT IN ('closed', 'resolved')]]>-->
+										<![CDATA[SELECT UserRequest AS T WHERE status IN ('new', 'assigned', 'pending', 'waiting_for_approval', 'approved', 'rejected')]]>
+									</condition>
+								</group>
+
+								<group id="resolved" _delta="delete"/>
+							</groups>
+						</tabs>
+					</grouping>
+					<rules _delta="define">
+						<rule id="go-to-open-request-on-submit"/>
+					</rules>
+                </brick>
+
+                <!--
+                    - "Histórico" -
+                    Redefinição do brick closed-tickets-for-portal-user.
+                -->
+				<brick id="closed-tickets-for-portal-user" xsi:type="Combodo\iTop\Portal\Brick\ManageBrick" _delta="redefine">
+					<active>true</active>
+					<rank>
+						<navigation_menu>50</navigation_menu>
+					</rank>
+					<visible>
+						<home>false</home>
+					</visible>
+					<width>12</width>
+					<title>
+						<default>Brick:Portal:ClosedRequests:Title</default>
+					</title>
+					<decoration_class>
+						<default>fc fc-closed-request fc-2x</default>
+					</decoration_class>
+					<!--<oql><![CDATA[SELECT UserRequest WHERE status = 'closed']]></oql>-->
+					<oql><![CDATA[SELECT UserRequest WHERE status IN ('resolved', 'closed')]]></oql>
+					<fields>
+						<field id="start_date"/>
+						<field id="status"/>
+						<field id="description"/>
+						<field id="solution"/>
+					</fields>
+					<grouping>
+						<tabs>
+							<groups>
+								<group id="all">
+									<rank>1</rank>
+									<title>Brick:Portal:ClosedRequests:Title</title>
+									<condition><![CDATA[SELECT Ticket]]></condition>
+								</group>
+							</groups>
+						</tabs>
+					</grouping>
+					<data_loading>auto</data_loading>
+				</brick>
+
+                <!-- 
+                    Desativa o brick da FAQ. Este brick está definido no módulo itop-knownerror-mgmt
+                -->
+                <brick id="faq">
+                    <active _delta="redefine">false</active>
+                </brick>
+
+                <!-- 
+                    - "Aprovações" -
+                    Este brick está definido no módulo combodo-approval-process-light
+                -->
+                <brick id="approvals">
+					<!--
+                    <active>false</active>
+                    <title>
+                        <default _delta="delete"/>
+                    </title>
+                    <description _delta="delete"/>
+					-->
+					<visible _delta="define">
+						<home>false</home>
+						<navigation_menu>true</navigation_menu>
+					</visible>
+					<classes>
+						<class id="UserRequest">
+							<fields _delta="redefine">
+								<field id="start_date"/>
+								<field id="caller_id"/>
+								<field id="location_id"/>
+								<field id="phone"/>
+								<field id="description"/>
+								<field id="agent_id"/>
+								<field id="private_log"/>
+								<field id="public_log"/>
+							</fields>
+						</class>
+					</classes>
+                </brick>
+            </bricks>
+
+            <forms>
+                <form id="ticket-create" _delta="redefine">
+					<class>Ticket</class>
+					<fields />
+					<twig>
+						<div class="row">
+							<div class="col-sm-6">
+								<div class="form_field" data-field-id="caller_id" data-field-flags="read_only"></div>
+							</div>
+						</div>
+                        <div class="row">
+							<div class="col-sm-6">
+								<div class="form_field" data-field-id="location_id"></div>
+							</div>
+						</div>
+                        <div class="row">
+							<div class="col-sm-6">
+								<div class="form_field" data-field-id="phone" data-field-flags="mandatory"></div>
+							</div>
+						</div>
+						<div>
+							<div class="form_field" data-field-id="description"></div>
+						</div>
+					</twig>
+					<modes>
+						<mode id="create"/>
+					</modes>
+				</form>
+
+                <form id="ticket-edit" _delta="redefine">
+					<class>Ticket</class>
+					<properties>
+						<always_show_submit>true</always_show_submit>
+					</properties>
+					<fields></fields>
+					<twig>
+						<div class="row">
+							<div class="col-sm-7">
+								<fieldset>
+                                    <legend>{{'Ticket:baseinfo'|dict_s}}</legend>
+									<div class="col-sm-6">
+                                        <div class="form_field" data-field-id="caller_id" data-field-flags="read_only"></div>
+                                        <div class="form_field" data-field-id="phone" data-field-flags="read_only"></div>
+									</div>
+									<div class="col-sm-6">
+                                        <div class="form_field" data-field-id="location_id" data-field-flags="read_only"></div>
+										<div class="form_field" data-field-id="agent_id" data-field-flags="read_only"></div>
+									</div>
+									<div class="col-sm-12">
+										<div class="form_field" data-field-id="description" data-field-flags="read_only"></div>
+									</div>
+								</fieldset>
+							</div>
+							<div class="col-sm-5">
+								<fieldset>
+									<legend>{{'Brick:Portal:TicketEdit:Fieldset:Type'|dict_s}}</legend>
+									<div class="col-sm-6">
+                                        <div class="form_field" data-field-id="solution" data-field-flags="read_only"></div>
+										<div class="form_field" data-field-id="user_comment" data-field-flags="read_only"></div>
+										<div class="form_field" data-field-id="start_date" data-field-flags="read_only"></div>
+										<div class="form_field" data-field-id="resolution_date" data-field-flags="read_only"></div>
+									</div>
+								</fieldset>
+							</div>
+						</div>
+						<div>
+							<div class="form_field" data-field-id="public_log"></div>
+						</div>
+					</twig>
+					<modes>
+						<mode id="edit"/>
+						<mode id="view"/>
+					</modes>
+				</form>
+            </forms>
+
+			<action_rules>
+				<action_rule id="location-to-userrequest" _delta="define">
+					<source_oql><![CDATA[SELECT Location AS L WHERE L.id = :current_contact->location_id]]></source_oql>
+					<presets>
+						<preset id="1">copy(id, location_id)</preset>
+					</presets>
+				</action_rule>
+				<action_rule id="go-to-open-request-on-cancel" _delta="define">
+					<cancel xsi:type="goto">
+						<brick>ongoing-tickets-for-portal-user</brick>
+					</cancel>
+				</action_rule>
+			</action_rules>
+
+        </module_design>
+    </module_designs>
+</itop_design>
